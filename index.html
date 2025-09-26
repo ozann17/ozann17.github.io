@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flower Animation — by ozann</title>
+  <style>
+    html,body{height:100%;margin:0;background:linear-gradient(#0f172a,#071129);overflow:hidden;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial}
+    #canvas{display:block}
+    .ui {
+      position:fixed;right:16px;top:16px;color:#fff;font-size:13px;background:rgba(0,0,0,0.25);backdrop-filter:blur(6px);padding:10px;border-radius:10px
+    }
+    .btn{display:inline-block;padding:6px 10px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.06);cursor:pointer;margin-right:6px}
+    .small{font-size:12px;opacity:.9}
+    .words {
+      position:fixed;left:50%;top:10%;transform:translateX(-50%);
+      color:#fff;font-size:28px;font-weight:600;text-shadow:0 2px 6px rgba(0,0,0,0.6);
+      animation:fadeWords 6s infinite alternate;
+      text-align:center;
+      white-space:pre-line;
+    }
+    @keyframes fadeWords {
+      0% {opacity:0;transform:translate(-50%,-10px)}
+      20%,80% {opacity:1;transform:translate(-50%,0)}
+      100% {opacity:0;transform:translate(-50%,10px)}
+    }
+  </style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div class="ui">
+  <div class="small">Klik/ketuk untuk membuat bunga baru • Tekan <span style="font-weight:600">Space</span> untuk bersihkan</div>
+  <div style="margin-top:8px">
+    <button id="spawn" class="btn">Spawn</button>
+    <button id="clear" class="btn">Clear</button>
+  </div>
+</div>
+<div class="words" id="words">Halo Keyzia!! Semangat ya kuliahnya ILYSM!!</div>
+
+<script>
+/*
+  Flower Animation + Custom Words
+*/
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let DPR = window.devicePixelRatio || 1;
+function resize(){
+  DPR = window.devicePixelRatio || 1;
+  canvas.width = Math.floor(window.innerWidth * DPR);
+  canvas.height = Math.floor(window.innerHeight * DPR);
+  canvas.style.width = window.innerWidth + 'px';
+  canvas.style.height = window.innerHeight + 'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+function rand(min, max){ return Math.random() * (max - min) + min }
+function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3) }
+
+class Flower{
+  constructor(x, y, options={}){
+    this.x = x; this.y = y;
+    this.time = 0;
+    this.birth = performance.now();
+    this.scale = 0.02;
+    this.maxScale = options.size || rand(0.8, 1.6);
+    this.color = options.color || this.randomColor();
+    this.petals = options.petals || Math.floor(rand(5, 9));
+    this.petalLength = options.petalLength || rand(26, 62);
+    this.petalWidth = options.petalWidth || rand(10, 20);
+    this.rotation = rand(0, Math.PI*2);
+    this.swaySpeed = rand(0.6, 1.8);
+    this.swayAmount = rand(0.06, 0.25);
+    this.stemHeight = options.stemHeight || rand(30, 130);
+    this.pulse = rand(0.006, 0.02);
+    this.life = options.life || rand(8000, 22000);
+    this.seed = Math.random()*1000;
+  }
+  randomColor(){
+    const palettes = [ ['#FF6B6B','#FFD166'], ['#7AE7C7','#FFD6A5'], ['#9B5DE5','#F15BB5'], ['#00B4D8','#90E0EF'], ['#FFB4A2','#FFCDB2'] ];
+    const p = palettes[Math.floor(Math.random()*palettes.length)];
+    return {petal: p[0], center: p[1]};
+  }
+  update(dt){
+    this.time += dt;
+    const t = Math.min(1, (performance.now() - this.birth) / 1200);
+    this.scale = easeOutCubic(t) * this.maxScale;
+    this.scale *= 1 + Math.sin(this.time * 0.001 + this.seed) * this.pulse;
+  }
+  draw(ctx){
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rotation);
+    ctx.scale(this.scale, this.scale);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(0,0);
+    ctx.quadraticCurveTo(-6, this.stemHeight*0.35, -4, this.stemHeight);
+    ctx.lineWidth = 3 / this.scale;
+    ctx.strokeStyle = 'rgba(70,140,80,0.95)';
+    ctx.stroke();
+    ctx.restore();
+
+    for(let i=0;i<this.petals;i++){
+      const angle = (i / this.petals) * Math.PI * 2;
+      this.drawPetal(ctx, angle, i);
+    }
+
+    ctx.beginPath();
+    ctx.arc(0, 0, 8, 0, Math.PI*2);
+    const g = ctx.createRadialGradient(0,0,2,0,0,14);
+    g.addColorStop(0, this.color.center);
+    g.addColorStop(1, 'rgba(0,0,0,0.08)');
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    ctx.restore();
+  }
+  drawPetal(ctx, baseAngle, index){
+    const sway = Math.sin((this.time*0.001 + index*0.4) * this.swaySpeed) * this.swayAmount;
+    const angle = baseAngle + sway;
+    const length = this.petalLength;
+    const width = this.petalWidth;
+
+    ctx.save();
+    ctx.rotate(angle);
+
+    ctx.beginPath();
+    ctx.moveTo(0,0);
+    ctx.bezierCurveTo(width*0.5, -length*0.25, width*0.5, -length*0.75, 0, -length);
+    ctx.bezierCurveTo(-width*0.5, -length*0.75, -width*0.5, -length*0.25, 0, 0);
+    const g = ctx.createLinearGradient(0, -length, 0, 0);
+    g.addColorStop(0, this.color.petal);
+    g.addColorStop(1, 'rgba(255,255,255,0.08)');
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    ctx.lineWidth = 0.8 / this.scale;
+    ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+    ctx.stroke();
+
+    ctx.restore();
+  }
+}
+
+const flowers = [];
+let last = performance.now();
+function loop(now){
+  const dt = now - last;
+  last = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+function update(dt){
+  for(const f of flowers) f.update(dt);
+  while(flowers.length > 200) flowers.shift();
+}
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  const bg = ctx.createRadialGradient(canvas.width/2/DPR, canvas.height/2/DPR, 0, canvas.width/2/DPR, canvas.height/2/DPR, Math.max(canvas.width, canvas.height)/DPR*0.8);
+  bg.addColorStop(0, 'rgba(255,255,255,0.02)');
+  bg.addColorStop(1, 'rgba(0,0,0,0.15)');
+  ctx.fillStyle = 'rgba(6,10,23,0.35)';
+  ctx.fillRect(0,0,canvas.width/DPR, canvas.height/DPR);
+
+  flowers.sort((a,b)=> (a.y - b.y));
+  for(const f of flowers) f.draw(ctx);
+
+  drawParticles(ctx);
+}
+
+const particles = [];
+for(let i=0;i<60;i++) particles.push({x:rand(0,innerWidth), y:rand(0,innerHeight), r:rand(0.3,1.6), s:rand(0.2,0.8)});
+function drawParticles(ctx){
+  for(const p of particles){
+    p.x += Math.sin((performance.now()*0.0001 + p.y)*0.2) * 0.2 * p.s;
+    p.y -= 0.02 * p.s;
+    if(p.y < -10){ p.y = innerHeight + 10; p.x = rand(0,innerWidth); }
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    ctx.fill();
+  }
+}
+
+canvas.addEventListener('pointerdown', (e)=>{
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left);
+  const y = (e.clientY - rect.top);
+  spawnFlower(x, y);
+});
+
+function spawnFlower(x,y){
+  const f = new Flower(x,y,{
+    size: rand(0.6, 1.8),
+    petals: Math.floor(rand(5,10)),
+    petalLength: rand(18, 70),
+    petalWidth: rand(8, 26),
+    stemHeight: rand(20, 120),
+  });
+  flowers.push(f);
+}
+
+document.getElementById('spawn').addEventListener('click', ()=>{
+  spawnFlower(rand(80, innerWidth-80), rand(80, innerHeight-80));
+});
+document.getElementById('clear').addEventListener('click', ()=>{ flowers.length = 0; });
+
+window.addEventListener('keydown', (e)=>{
+  if(e.code === 'Space') { flowers.length = 0; e.preventDefault(); }
+});
+
+for(let i=0;i<10;i++) spawnFlower(rand(80, innerWidth-80), rand(innerHeight*0.25, innerHeight*0.8));
+
+requestAnimationFrame(loop);
+
+</script>
+</body>
+</html>
+
+                 
